@@ -1,0 +1,7 @@
+﻿.env
+*.py
+*.bat
+*.bak.json
+*.backup*.json
+photos_brutes/
+__pycache__/

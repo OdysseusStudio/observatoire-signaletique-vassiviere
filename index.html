@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Observatoire & Schéma Directeur de Signalétique — Lac de Vassivière (SYMIVA)</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f3d5e'/%3E%3Cpath d='M10 42c6-4 12-4 18 0s12 4 18 0 6-4 8-2v10H10V42z' fill='%2338bdf8'/%3E%3Cpath d='M26 14h16l5 6-5 6H26V14z' fill='%23f59e0b'/%3E%3Crect x='23' y='12' width='3' height='26' rx='1.5' fill='%23ffffff'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #cbd5e1;
+      --primary: #0f4c5c;
+      --primary-light: #e0f2fe;
+      --c-vague: #0284c7;
+      --c-prox: #059669;
+      --c-route: #d97706;
+      --c-prive: #dc2626;
+      --c-revoir: #7c3aed;
+      --c-hors: #94a3b8;
+      --c-sv: #f59e0b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+    body { display: flex; flex-direction: column; height: 100vh; background: var(--bg); color: var(--text); }
+
+    header {
+      background: var(--primary); color: #fff; padding: 12px 24px;
+      display: flex; justify-content: space-between; align-items: center; gap: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15); z-index: 1000;
+    }
+    header h1 { font-size: 1.02rem; font-weight: 700; }
+    header p { font-size: 0.75rem; opacity: 0.85; }
+
+    .nav-tabs { display: flex; gap: 5px; background: rgba(0,0,0,0.22); padding: 4px; border-radius: 8px; }
+    .tab-btn {
+      background: transparent; color: #e2e8f0; border: none; padding: 7px 12px;
+      border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: 0.15s;
+    }
+    .tab-btn.active { background: #fff; color: var(--primary); }
+
+    .header-actions { display: flex; gap: 8px; }
+    button.btn {
+      background: #fff; color: var(--primary); border: none; padding: 7px 12px;
+      border-radius: 6px; font-weight: 600; font-size: 0.8rem; cursor: pointer;
+    }
+    button.btn-accent { background: #0d9488; color: #fff; }
+    button.btn:hover { opacity: 0.92; }
+
+    .view-container { display: none; flex: 1; overflow: hidden; }
+    .view-container.active { display: flex; }
+
+    /* CARTE */
+    aside {
+      width: 405px; background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; overflow-y: auto; padding: 15px; gap: 11px;
+    }
+    .kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .kpi {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px; text-align: center;
+    }
+    .kpi strong { display: block; font-size: 1.25rem; color: var(--primary); }
+    .kpi span { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; font-weight: 600; }
+    .kpi.alert strong { color: #dc2626; }
+    .kpi.sv strong { color: #d97706; }
+
+    .section-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      color: var(--muted); margin-bottom: 5px; letter-spacing: 0.5px;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 5px; }
+    label.chk {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 0.81rem; padding: 5px 8px; border-radius: 6px; background: var(--bg); cursor: pointer;
+    }
+    label.chk span.left { display: flex; align-items: center; gap: 8px; }
+    .dot { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+    select, input[type="search"], input[type="number"] {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 0.83rem; background: #fff;
+    }
+
+    #map { flex: 1; height: 100%; }
+
+    .popup-card { width: 315px; font-size: 0.82rem; line-height: 1.4; }
+    .popup-gallery { display: flex; gap: 4px; overflow-x: auto; margin-bottom: 8px; }
+    .popup-gallery img {
+      height: 160px; min-width: 100%; object-fit: cover; border-radius: 6px;
+      border: 1px solid var(--border); cursor: zoom-in;
+    }
+    .popup-gallery.multi img { min-width: 78%; }
+    .badge {
+      display: inline-block; padding: 2px 7px; border-radius: 4px;
+      font-size: 0.7rem; font-weight: 700; color: #fff; margin-right: 4px; margin-bottom: 3px;
+    }
+    .badge-sv { background: #fef3c7; color: #92400e; border: 1px dashed #f59e0b; }
+    .badge-sirene { background: #fee2e2; color: #991b1b; border: 1px solid #ef4444; }
+    .etat-Bon { background: #16a34a; }
+    .etat-Moyen { background: #d97706; }
+    .etat-Dégradé { background: #dc2626; }
+    .popup-ocr {
+      background: #f8fafc; border-left: 3px solid var(--primary);
+      padding: 5px 8px; margin: 6px 0; font-style: italic; color: #334155;
+    }
+    .popup-links { display: flex; gap: 8px; margin-top: 8px; }
+    .popup-links a {
+      flex: 1; text-align: center; text-decoration: none; padding: 5px;
+      border-radius: 5px; font-weight: 600; font-size: 0.75rem;
+      background: var(--primary); color: #fff;
+    }
+
+    /* RAPPORTS PARTIE 1 & PARTIE 2 */
+    .report-scroll { flex: 1; overflow-y: auto; padding: 28px; background: #e2e8f0; }
+    .report-toolbar {
+      max-width: 1040px; margin: 0 auto 16px auto; background: #fff; padding: 12px 20px;
+      border-radius: 8px; display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .report-page {
+      max-width: 1040px; margin: 0 auto; background: #fff; padding: 40px 48px;
+      border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .report-header {
+      border-bottom: 3px solid var(--primary); padding-bottom: 16px; margin-bottom: 24px;
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+    .report-header h2 { font-size: 1.46rem; color: var(--primary); margin-bottom: 4px; }
+    .report-header .meta { font-size: 0.84rem; color: var(--muted); }
+    .report-tag {
+      background: var(--primary-light); color: var(--primary); font-weight: 700;
+      padding: 6px 12px; border-radius: 4px; font-size: 0.78rem; text-align: right;
+    }
+
+    .timeline-bar {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      background: #f8fafc; border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; margin-bottom: 24px; font-size: 0.78rem;
+    }
+    .tl-step strong { display: block; color: var(--primary); font-size: 0.82rem; margin-bottom: 2px; }
+
+    .report-section { margin-bottom: 30px; }
+    .report-section h3 {
+      font-size: 1.08rem; color: var(--primary); border-left: 4px solid var(--primary);
+      padding-left: 10px; margin-bottom: 12px;
+    }
+    .report-intro { font-size: 0.88rem; color: #334155; line-height: 1.55; margin-bottom: 14px; }
+
+    .callout-box {
+      background: #f0fdfa; border: 1px solid #99f6e4; border-left: 4px solid #0d9488;
+      padding: 14px 16px; border-radius: 6px; margin-bottom: 18px; font-size: 0.86rem; line-height: 1.5;
+    }
+    .callout-sv {
+      background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b;
+      padding: 12px 16px; border-radius: 6px; margin-bottom: 18px; font-size: 0.84rem; line-height: 1.5;
+    }
+
+    .kpi-report-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+    .kpi-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: #f8fafc; }
+    .kpi-box .val { font-size: 1.55rem; font-weight: 800; color: var(--primary); }
+    .kpi-box .lbl { font-size: 0.75rem; font-weight: 600; color: var(--muted); margin-top: 2px; }
+
+    table.audit-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; margin-bottom: 14px; }
+    table.audit-table th { background: var(--primary); color: #fff; text-align: left; padding: 8px 10px; font-weight: 600; }
+    table.audit-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    table.audit-table tr:nth-child(even) td { background: #f8fafc; }
+
+    .vagues-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .vague-card { border: 1px solid var(--border); border-radius: 8px; padding: 14px; background: #fff; }
+    .vague-card h4 { font-size: 0.9rem; color: var(--primary); margin-bottom: 6px; }
+    .vague-card .count { font-size: 1.45rem; font-weight: 800; margin-bottom: 6px; }
+    .vague-card p { font-size: 0.8rem; color: #475569; line-height: 1.45; }
+
+    .cluster-card {
+      border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 10px;
+      background: #f8fafc; page-break-inside: avoid;
+    }
+    .cluster-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .cluster-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .cluster-thumbs img { width: 105px; height: 72px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
+    .thumb-mini { width: 62px; height: 44px; object-fit: cover; border-radius: 4px; }
+
+    .price-input { width: 95px !important; padding: 4px 6px !important; text-align: right; font-weight: 600; }
+
+    @media print {
+      body { height: auto; background: #fff; display: block; }
+      header, aside, #view-carte, .report-toolbar, .no-print { display: none !important; }
+      .view-container.active { display: block !important; overflow: visible !important; }
+      .report-scroll { padding: 0; background: #fff; overflow: visible; }
+      .report-page { max-width: 100%; box-shadow: none; padding: 0; margin: 0; }
+      .report-section { page-break-inside: avoid; }
+      .page-break { page-break-before: always; }
+      table.audit-table th { background: #0f4c5c !important; color: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Observatoire de la Signalétique — Lac de Vassivière (SYMIVA)</h1>
+    <p id="headerSubtitle">Chargement de la base terrain...</p>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="changerVue('carte', this)">🗺️ Carte interactive</button>
+    <button class="tab-btn" onclick="changerVue('rapport', this)">📊 Partie 1 : Diagnostic Global</button>
+    <button class="tab-btn" onclick="changerVue('phase2', this)">💡 Partie 2 : Propositions & Budget 20 k€</button>
+  </div>
+
+  <div class="header-actions">
+    <button class="btn" onclick="exporterCSV()">📥 Export CSV</button>
+    <button class="btn btn-accent" onclick="exporterVuePDF()">📄 Exporter vue en PDF</button>
+  </div>
+</header>
+
+<!-- VUE 1 : CARTE INTERACTIVE -->
+<div id="view-carte" class="view-container active">
+  <aside>
+    <div class="kpi-grid">
+      <div class="kpi"><strong id="kpiTotal">0</strong><span>Supports uniques</span></div>
+      <div class="kpi alert"><strong id="kpiDegrade">0%</strong><span>Dégradés / Obsolètes</span></div>
+      <div class="kpi"><strong id="kpiRemplacer">0</strong><span>Priorité SYMIVA</span></div>
+      <div class="kpi sv"><strong id="kpiStreetView">0</strong><span>🛰️ Street View à vérifier</span></div>
+    </div>
+
+    <div>
+      <div class="section-title">Origine du relevé</div>
+      <select id="sourceSelect" onchange="appliquerFiltres()">
+        <option value="ALL">Toutes les sources (Terrain + Street View)</option>
+        <option value="terrain">📸 Relevés terrain certifiés (2026)</option>
+        <option value="street_view">🛰️ Complément Street View (à vérifier sur place)</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="section-title">Commune (Découpage officiel IGN)</div>
+      <select id="communeSelect" onchange="appliquerFiltres()">
+        <option value="ALL">Toutes les communes du Lac</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="section-title">Recherche instantanée</div>
+      <input type="search" id="searchInput" placeholder="Camping, plage, chiens, Royère, fermé..." oninput="appliquerFiltres()" />
+    </div>
+
+    <div>
+      <div class="section-title">Typologie du CR & Périmètre</div>
+      <div class="filter-group">
+        <label class="chk">
+          <span class="left"><input type="checkbox" class="cat-chk" value="lac_vague" checked onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-vague)"></span>Lac — Panneaux « à vague »</span>
+          <strong id="cnt-lac_vague">0</strong>
+        </label>
+        <label class="chk">
+          <span class="left"><input type="checkbox" class="cat-chk" value="lac_proximite" checked onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-prox)"></span>Lac — Ports & Plages (proximité)</span>
+          <strong id="cnt-lac_proximite">0</strong>
+        </label>
+        <label class="chk">
+          <span class="left"><input type="checkbox" class="cat-chk" value="routiere" checked onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-route)"></span>Routière & Jalonnement communal</span>
+          <strong id="cnt-routiere">0</strong>
+        </label>
+        <label class="chk">
+          <span class="left"><input type="checkbox" class="cat-chk" value="privee" checked onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-prive)"></span>Panneaux sauvages / privés</span>
+          <strong id="cnt-privee">0</strong>
+        </label>
+        <label class="chk">
+          <span class="left"><input type="checkbox" class="cat-chk" value="a_revoir" checked onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-revoir)"></span>📍 Repères GPS à re-photographier</span>
+          <strong id="cnt-a_revoir">0</strong>
+        </label>
+        <label class="chk" style="opacity:0.8;">
+          <span class="left"><input type="checkbox" class="cat-chk" value="hors_perimetre" onchange="appliquerFiltres()"><span class="dot" style="background:var(--c-hors)"></span>Hors périmètre (terrain privé interne)</span>
+          <strong id="cnt-hors_perimetre">0</strong>
+        </label>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">État sanitaire & Alertes</div>
+      <select id="etatSelect" onchange="appliquerFiltres()">
+        <option value="ALL">Tous les états</option>
+        <option value="Bon">Bon état</option>
+        <option value="Moyen">État moyen</option>
+        <option value="Dégradé / Obsolète">Dégradé / Obsolète</option>
+        <option value="SIRENE_FERME">🏢 Entreprise fermée (INSEE SIRENE)</option>
+      </select>
+    </div>
+
+    <div>
+      <div class="section-title">Action préconisée</div>
+      <select id="recoSelect" onchange="appliquerFiltres()">
+        <option value="ALL">Toutes les préconisations</option>
+        <option value="Conserver">Conserver</option>
+        <option value="Nettoyer / Restaurer">Nettoyer / Restaurer</option>
+        <option value="Remplacer (nouvelle charte)">Remplacer (nouvelle charte)</option>
+        <option value="Déposer / Supprimer">Déposer / Supprimer</option>
+        <option value="Régulariser avec tiers">Régulariser avec tiers</option>
+      </select>
+    </div>
+  </aside>
+
+  <div id="map"></div>
+</div>
+
+<!-- VUE 2 : PARTIE 1 — DIAGNOSTIC GLOBAL DE L'EXISTANT -->
+<div id="view-rapport" class="view-container">
+  <div class="report-scroll">
+    <div class="report-toolbar no-print">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <strong>Périmètre Partie 1 :</strong>
+        <select id="rapportCommuneSelect" style="width:auto;" onchange="genererTout()">
+          <option value="ALL">Global — Tout le Lac de Vassivière (Bureau 06/01/2027 & 6 Maires 14/01/2027)</option>
+        </select>
+      </div>
+      <button class="btn btn-accent" onclick="window.print()">🖨️ Imprimer / Enregistrer Partie 1 (PDF)</button>
+    </div>
+    <div class="report-page" id="reportContent"></div>
+  </div>
+</div>
+
+<!-- VUE 3 : PARTIE 2 — PROPOSITIONS OPÉRATIONNELLES, NUDGE PHYDIGITAL & BUDGET 20 K€ -->
+<div id="view-phase2" class="view-container">
+  <div class="report-scroll">
+    <div class="report-toolbar no-print">
+      <div><strong>Partie 2 (Dossier Opérationnel Indépendant) :</strong> Tranche 1 Ports & Plages (20 000 €), Nudge Phygital & Tranche 2</div>
+      <button class="btn btn-accent" onclick="window.print()">🖨️ Imprimer / Enregistrer Partie 2 (PDF)</button>
+    </div>
+    <div class="report-page" id="phase2Content"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+  const COULEURS = {
+    lac_vague: '#0284c7',
+    lac_proximite: '#059669',
+    routiere: '#d97706',
+    privee: '#dc2626',
+    a_revoir: '#7c3aed',
+    hors_perimetre: '#94a3b8'
+  };
+
+  const LIBELLES = {
+    lac_vague: 'Lac — Panneaux « à vague »',
+    lac_proximite: 'Lac — Ports & Plages (proximité)',
+    routiere: 'Routière & Jalonnement communal',
+    privee: 'Panneaux sauvages / privés',
+    a_revoir: 'Repère GPS à re-photographier',
+    hors_perimetre: 'Hors périmètre (terrain privé interne)'
+  };
+
+  function normaliserCategorie(item) {
+    if (item.categorie === 'hors_perimetre' || item.implantation_fonciere === 'terrain_prive_interne' || item.recommandation === 'Hors périmètre (terrain privé)') {
+      return 'hors_perimetre';
+    }
+    if (item.categorie === 'a_revoir') return 'a_revoir';
+    const texte = `${item.texte_retranscrit || ''} ${(item.anomalies_detectees || []).join(' ')} ${item.sous_categorie || ''}`.toLowerCase();
+    const motsCles = ['noir', 'flou', 'floue', 'sombre', 'obscur', 'aucun panneau', 'pas de panneau', 'indistinct', 'ratée', 'bougé'];
+    return motsCles.some(mot => texte.includes(mot)) ? 'a_revoir' : item.categorie;
+  }
+
+  function attribuerSecteurFallback(lat, lng) {
+    if (!lat || !lng) return 'Non géolocalisé';
+    if (lat >= 45.805 && lng >= 1.855) return 'Royère-de-Vassivière';
+    if (lat < 45.805 && lng >= 1.865) return 'Peyrat-le-Château';
+    if (lat < 45.788 && lng < 1.865) return 'Faux-la-Montagne';
+    return 'Beaumont-du-Lac';
+  }
+
+  function estStreetView(item) {
+    return item.source === 'street_view' || item.a_verifier_sur_place === true || String(item.fichier_original || '').startsWith('SV_');
+  }
+
+  function classerThematiqueProximite(item) {
+    const t = `${item.texte_retranscrit || ''} ${item.sous_categorie || ''}`.toLowerCase();
+    if (t.includes('chien') || t.includes('laisse') || t.includes('déjection')) return 'Chiens & Tenue en laisse';
+    if (t.includes('camping-car') || t.includes('parking') || t.includes('stationnement') || t.includes('pmr')) return 'Stationnement, Camping-cars & PMR';
+    if (t.includes('navigation') || t.includes('port') || t.includes('bateau') || t.includes('mise à l\'eau') || t.includes('amarrage')) return 'Navigation, Ports & Mises à l\'eau';
+    if (t.includes('déchet') || t.includes('poubelle') || t.includes('tri') || t.includes('ordure')) return 'Gestion des déchets & Propreté';
+    if (t.includes('baignade') || t.includes('eau') || t.includes('pavillon') || t.includes('qualité')) return 'Baignade & Qualité de l\'eau';
+    return 'Équipements SYMIVA & Information site';
+  }
+
+  function analyserMentionVague(texte) {
+    if (!texte) return 'Non lisible';
+    const t = texte.toLowerCase();
+    const indicesNommes = ['camping les', 'camping du', 'camping de', 'hôtel', 'restaurant', 'auberge', 'ferme', 'chez ', 'club', 'base nautique', 'accrobranche', 'centre d\'art'];
+    return indicesNommes.some(k => t.includes(k)) ? 'Citation nominative (acteur précis)' : 'Mention générique / équipement public';
+  }
+
+  function distanceMetres(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const p1 = lat1 * Math.PI / 180, p2 = lat2 * Math.PI / 180;
+    const dp = (lat2 - lat1) * Math.PI / 180, dl = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+    return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function similariteTexte(t1, t2) {
+    const m1 = new Set((t1 || '').toLowerCase().replace(/[^a-zàâéèêëîïôùûüç0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3));
+    const m2 = new Set((t2 || '').toLowerCase().replace(/[^a-zàâéèêëîïôùûüç0-9\s]/g, '').split(/\s+/).filter(w => w.length > 3));
+    if (!m1.size || !m2.size) return 0;
+    let communs = 0;
+    m1.forEach(w => { if (m2.has(w)) communs++; });
+    return communs / Math.min(m1.size, m2.size);
+  }
+
+  function dedupliquerSupports(liste) {
+    const fusionnes = [];
+    const consommes = new Set();
+    const prioriteEtat = { 'Dégradé / Obsolète': 3, 'Moyen': 2, 'Bon': 1 };
+
+    for (let i = 0; i < liste.length; i++) {
+      if (consommes.has(i)) continue;
+      const base = { ...liste[i], photos_angles: [liste[i].image_web], ids_fusionnes: [liste[i].id] };
+      consommes.add(i);
+
+      // On ne fusionne jamais un relevé terrain avec un repérage Street View
+      if (base.latitude && base.longitude && base.categorie !== 'a_revoir' && !base.is_sv) {
+        for (let j = i + 1; j < liste.length; j++) {
+          if (consommes.has(j)) continue;
+          const cand = liste[j];
+          if (
+            !cand.is_sv &&
+            cand.fichier_original !== base.fichier_original &&
+            cand.categorie === base.categorie &&
+            cand.latitude && cand.longitude &&
+            distanceMetres(base.latitude, base.longitude, cand.latitude, cand.longitude) <= 15 &&
+            similariteTexte(base.texte_retranscrit, cand.texte_retranscrit) >= 0.5
+          ) {
+            consommes.add(j);
+            if (!base.photos_angles.includes(cand.image_web)) base.photos_angles.push(cand.image_web);
+            base.ids_fusionnes.push(cand.id);
+            if ((prioriteEtat[cand.etat_conservation] || 0) > (prioriteEtat[base.etat_conservation] || 0)) {
+              base.etat_conservation = cand.etat_conservation;
+              base.recommandation = cand.recommandation;
+            }
+          }
+        }
+      }
+      fusionnes.push(base);
+    }
+    return fusionnes;
+  }
+
+  function detecterPointsNoirs(panneaux, rayonM = 35, seuilMin = 3) {
+    const geoloc = panneaux.filter(p => p.latitude && p.longitude && !p.is_sv);
+    const visites = new Set();
+    const grappes = [];
+    for (let i = 0; i < geoloc.length; i++) {
+      if (visites.has(i)) continue;
+      const groupe = [geoloc[i]];
+      visites.add(i);
+      for (let j = i + 1; j < geoloc.length; j++) {
+        if (!visites.has(j) && distanceMetres(geoloc[i].latitude, geoloc[i].longitude, geoloc[j].latitude, geoloc[j].longitude) <= rayonM) {
+          groupe.push(geoloc[j]);
+          visites.add(j);
+        }
+      }
+      if (groupe.length >= seuilMin) grappes.push(groupe);
+    }
+    return grappes.sort((a, b) => b.length - a.length);
+  }
+
+  const map = L.map('map').setView([45.803, 1.855], 13);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+  const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri Satellite' });
+  L.control.layers({ "Plan OSM": osm, "Vue Satellite": satellite }).addTo(map);
+  const clusterGroup = L.markerClusterGroup({ maxClusterRadius: 35 });
+  map.addLayer(clusterGroup);
+
+  let donneesBrutes = [];
+  let supportsUniques = [];
+  let selectionActuelle = [];
+
+  function changerVue(vue, btn) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + vue).classList.add('active');
+    if (vue === 'carte') setTimeout(() => map.invalidateSize(), 100);
+  }
+
+  function exporterVuePDF() {
+    if (document.getElementById('view-carte').classList.contains('active')) {
+      changerVue('rapport', document.querySelectorAll('.tab-btn')[1]);
+      setTimeout(() => window.print(), 250);
+    } else {
+      window.print();
+    }
+  }
+
+  function creerIcone(cat, isSv) {
+    const color = COULEURS[cat] || '#475569';
+    if (isSv) {
+      // Marqueur distinct pour Street View : halo pointillé ambre + centre coloré
+      return L.divIcon({
+        className: 'custom-pin-sv',
+        html: `<div style="background:${color};width:18px;height:18px;border-radius:50%;border:2.5px dashed #f59e0b;outline:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,0.55);"></div>`,
+        iconSize: [18, 18], iconAnchor: [9, 9]
+      });
+    }
+    return L.divIcon({
+      className: 'custom-pin',
+      html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.45);"></div>`,
+      iconSize: [16, 16], iconAnchor: [8, 8]
+    });
+  }
+
+  function peuplerSelectCommunes() {
+    const comptes = {};
+    supportsUniques.forEach(d => {
+      const com = d.commune || 'Non déterminée';
+      comptes[com] = (comptes[com] || 0) + 1;
+    });
+    const trie = Object.entries(comptes).sort((a, b) => b[1] - a[1]);
+
+    const selCarte = document.getElementById('communeSelect');
+    const selRapport = document.getElementById('rapportCommuneSelect');
+
+    trie.forEach(([com, nb]) => {
+      const opt1 = document.createElement('option');
+      opt1.value = com;
+      opt1.textContent = `${com} (${nb} supports)`;
+      selCarte.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = com;
+      opt2.textContent = `Focus Commune : ${com} (${nb} supports)`;
+      selRapport.appendChild(opt2);
+    });
+  }
+
+  async function chargerDonnees() {
+    try {
+      const res = await fetch('diagnostic_signaletique.json?t=' + Date.now());
+      const brut = await res.json();
+      donneesBrutes = brut.map(item => ({
+        ...item,
+        categorie: normaliserCategorie(item),
+        commune: item.commune && item.commune !== 'Non déterminée' ? item.commune : attribuerSecteurFallback(item.latitude, item.longitude),
+        thematique_prox: classerThematiqueProximite(item),
+        is_sv: estStreetView(item)
+      }));
+      supportsUniques = dedupliquerSupports(donneesBrutes);
+      peuplerSelectCommunes();
+
+      const nbTerrain = supportsUniques.filter(d => !d.is_sv).length;
+      const nbSv = supportsUniques.filter(d => d.is_sv).length;
+      const dateMaj = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+      document.getElementById('headerSubtitle').textContent = `Étude SYMIVA • ${nbTerrain} supports terrain + ${nbSv} repérages Street View • MAJ ${dateMaj}`;
+
+      appliquerFiltres();
+      genererTout();
+    } catch (e) {
+      alert("Impossible de lire diagnostic_signaletique.json. Lance 'python -m http.server 8000' dans VS Code.");
+    }
+  }
+
+  function appliquerFiltres() {
+    const catsActives = Array.from(document.querySelectorAll('.cat-chk:checked')).map(c => c.value);
+    const sourceFiltre = document.getElementById('sourceSelect').value;
+    const commune = document.getElementById('communeSelect').value;
+    const etat = document.getElementById('etatSelect').value;
+    const reco = document.getElementById('recoSelect').value;
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+
+    ['lac_vague', 'lac_proximite', 'routiere', 'privee', 'a_revoir', 'hors_perimetre'].forEach(c => {
+      document.getElementById('cnt-' + c).textContent = supportsUniques.filter(d =>
+        d.categorie === c &&
+        (commune === 'ALL' || d.commune === commune) &&
+        (sourceFiltre === 'ALL' || (sourceFiltre === 'street_view' ? d.is_sv : !d.is_sv))
+      ).length;
+    });
+
+    selectionActuelle = supportsUniques.filter(d => {
+      if (!catsActives.includes(d.categorie)) return false;
+      if (sourceFiltre === 'terrain' && d.is_sv) return false;
+      if (sourceFiltre === 'street_view' && !d.is_sv) return false;
+      if (commune !== 'ALL' && d.commune !== commune) return false;
+      if (etat === 'SIRENE_FERME') {
+        if (!d.entreprise_fermee && !(d.anomalies_detectees || []).some(a => a.includes('SIRENE'))) return false;
+      } else if (etat !== 'ALL' && d.etat_conservation !== etat) {
+        return false;
+      }
+      if (reco !== 'ALL' && d.recommandation !== reco) return false;
+      if (q) {
+        const blob = `${d.texte_retranscrit} ${d.sous_categorie} ${d.commune} ${(d.anomalies_detectees || []).join(' ')}`.toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+
+    afficherMarqueurs(selectionActuelle);
+    const total = selectionActuelle.length;
+    const degrades = selectionActuelle.filter(d => d.etat_conservation.startsWith('Dégradé')).length;
+    const nbSv = selectionActuelle.filter(d => d.is_sv).length;
+
+    document.getElementById('kpiTotal').textContent = total;
+    document.getElementById('kpiDegrade').textContent = total ? Math.round((degrades / total) * 100) + '%' : '0%';
+    document.getElementById('kpiRemplacer').textContent = selectionActuelle.filter(d => (d.categorie === 'lac_vague' || d.categorie === 'lac_proximite') && d.etat_conservation !== 'Bon').length;
+    document.getElementById('kpiStreetView').textContent = nbSv;
+  }
+
+  function afficherMarqueurs(liste) {
+    clusterGroup.clearLayers();
+    liste.forEach(item => {
+      if (!item.latitude || !item.longitude) return;
+      const etatClass = item.etat_conservation.startsWith('Dégradé') ? 'Dégradé' : item.etat_conservation;
+      const svBtn = item.street_view_url ? `<a href="${item.street_view_url}" target="_blank">Ouvrir Street View</a>` : '';
+      const angles = item.photos_angles || [item.image_web];
+      const badgeAngles = angles.length > 1 ? `<span class="badge" style="background:#0f766e">📸 ${angles.length} angles</span>` : '';
+      const badgeSv = item.is_sv ? `<span class="badge badge-sv">🛰️ Street View — À vérifier sur place</span>` : '';
+      const badgeSirene = item.entreprise_fermee ? `<span class="badge badge-sirene">🏢 Entreprise fermée (SIRENE)</span>` : '';
+      const galerieHtml = `<div class="popup-gallery ${angles.length > 1 ? 'multi' : ''}">${angles.map(src => `<img src="${src}" onclick="window.open('${src}','_blank')" />`).join('')}</div>`;
+
+      const html = `
+        <div class="popup-card">
+          ${galerieHtml}
+          <div>
+            ${badgeSv}
+            ${badgeSirene}
+            <span class="badge" style="background:${COULEURS[item.categorie]}">${LIBELLES[item.categorie]}</span>
+            <span class="badge etat-${etatClass}">${item.etat_conservation}</span>
+            ${badgeAngles}
+          </div>
+          <div style="color:#64748b;font-size:0.74rem;margin:4px 0;"><strong>${item.commune}</strong> • ${item.sous_categorie}</div>
+          <div class="popup-ocr">« ${item.texte_retranscrit || 'Texte non lisible'} »</div>
+          <div><strong>Anomalies :</strong> ${(item.anomalies_detectees || []).join(', ')}</div>
+          <div><strong>Action :</strong> <u>${item.recommandation}</u></div>
+          <div class="popup-links"><a href="${item.image_web}" target="_blank">Image HD</a>${svBtn}</div>
+        </div>
+      `;
+      const marker = L.marker([item.latitude, item.longitude], { icon: creerIcone(item.categorie, item.is_sv) });
+      marker.bindPopup(html, { maxWidth: 340 });
+      clusterGroup.addLayer(marker);
+    });
+  }
+
+  function genererTout() {
+    genererPartie1DiagnosticGlobal();
+    genererPartie2PropositionsBudget();
+  }
+
+  /* =========================================================================
+     PARTIE 1 : DIAGNOSTIC GLOBAL DE L'EXISTANT (TERRAIN + COMPLÉMENT SV)
+     ========================================================================= */
+  function genererPartie1DiagnosticGlobal() {
+    const communeChoisie = document.getElementById('rapportCommuneSelect').value;
+    const base = communeChoisie === 'ALL' ? supportsUniques : supportsUniques.filter(d => d.commune === communeChoisie);
+
+    // Séparation stricte entre les relevés terrain certifiés et les points Street View à vérifier
+    const terrainValides = base.filter(d => !d.is_sv && d.categorie !== 'a_revoir' && d.categorie !== 'hors_perimetre');
+    const pointsStreetView = base.filter(d => d.is_sv && d.categorie !== 'hors_perimetre');
+    const aRevoir = base.filter(d => !d.is_sv && d.categorie === 'a_revoir');
+    const horsPerimetre = base.filter(d => d.categorie === 'hors_perimetre');
+    const anglesFusionnes = terrainValides.reduce((acc, d) => acc + (d.photos_angles.length - 1), 0);
+
+    const tot = terrainValides.length;
+    const degTot = terrainValides.filter(d => d.etat_conservation.startsWith('Dégradé')).length;
+    const tauxVetuste = tot ? Math.round((degTot / tot) * 100) : 0;
+    const nbEntreprisesFermees = terrainValides.filter(d => d.entreprise_fermee).length;
+
+    const patrimoineLac = terrainValides.filter(d => d.categorie === 'lac_vague' || d.categorie === 'lac_proximite');
+    const lacARenover = patrimoineLac.filter(d => d.etat_conservation !== 'Bon').length;
+
+    const v1 = terrainValides.filter(d => d.recommandation === 'Nettoyer / Restaurer').length;
+    const v2 = terrainValides.filter(d => d.recommandation.startsWith('Remplacer')).length;
+    const v3 = terrainValides.filter(d => d.recommandation.startsWith('Déposer') || d.recommandation.startsWith('Régulariser')).length;
+
+    const grappes = detecterPointsNoirs(terrainValides, 35, 3);
+    const cats = ['lac_vague', 'lac_proximite', 'routiere', 'privee'];
+
+    const lignesMatrice = cats.map(c => {
+      const sub = terrainValides.filter(d => d.categorie === c);
+      const b = sub.filter(d => d.etat_conservation === 'Bon').length;
+      const m = sub.filter(d => d.etat_conservation === 'Moyen').length;
+      const deg = sub.filter(d => d.etat_conservation.startsWith('Dégradé')).length;
+      const pct = sub.length ? Math.round((deg / sub.length) * 100) : 0;
+      return `<tr>
+        <td><strong>${LIBELLES[c]}</strong></td>
+        <td>${sub.length}</td>
+        <td>${b}</td>
+        <td>${m}</td>
+        <td>${deg}</td>
+        <td><strong>${pct} %</strong></td>
+      </tr>`;
+    }).join('');
+
+    // Tableau par commune (pour la réunion des 6 maires du 14/01/2027)
+    const communesListe = [...new Set(base.map(d => d.commune))].sort((a, b) =>
+      base.filter(x => x.commune === b).length - base.filter(x => x.commune === a).length
+    );
+    const lignesCommunes = communesListe.map(com => {
+      const subT = terrainValides.filter(d => d.commune === com);
+      const subDeg = subT.filter(d => d.etat_conservation.startsWith('Dégradé')).length;
+      const subFerme = subT.filter(d => d.entreprise_fermee).length;
+      const subSv = pointsStreetView.filter(d => d.commune === com).length;
+      return `<tr>
+        <td><strong>${com}</strong></td>
+        <td>${subT.length}</td>
+        <td style="color:#dc2626;font-weight:600;">${subDeg}</td>
+        <td>${subFerme ? `<strong style="color:#991b1b;">${subFerme}</strong>` : '0'}</td>
+        <td>${subSv ? `<span style="color:#b45309;font-weight:600;">🛰️ ${subSv} à vérifier</span>` : '0'}</td>
+      </tr>`;
+    }).join('');
+
+    const proxItems = terrainValides.filter(d => d.categorie === 'lac_proximite');
+    const themesProx = [
+      'Navigation, Ports & Mises à l\'eau',
+      'Chiens & Tenue en laisse',
+      'Stationnement, Camping-cars & PMR',
+      'Équipements SYMIVA & Information site',
+      'Gestion des déchets & Propreté',
+      'Baignade & Qualité de l\'eau'
+    ];
+    const lignesProx = themesProx.map(th => {
+      const sub = proxItems.filter(d => d.thematique_prox === th);
+      const deg = sub.filter(d => d.etat_conservation.startsWith('Dégradé')).length;
+      return `<tr><td>${th}</td><td><strong>${sub.length}</strong></td><td>${deg}</td></tr>`;
+    }).join('');
+
+    const vaguesItems = terrainValides.filter(d => d.categorie === 'lac_vague');
+    const lignesVagues = vaguesItems.slice(0, 35).map(d => `
+      <tr>
+        <td>#${d.id}</td>
+        <td><img src="${d.image_web}" class="thumb-mini" /></td>
+        <td>${d.commune}</td>
+        <td><em>${d.texte_retranscrit || '—'}</em> ${d.entreprise_fermee ? '<br><strong style="color:#dc2626;font-size:0.75rem;">⚠️ Entreprise fermée (SIRENE)</strong>' : ''}</td>
+        <td>${analyserMentionVague(d.texte_retranscrit)}</td>
+        <td>${d.etat_conservation}</td>
+      </tr>
+    `).join('');
+
+    const htmlGrappes = grappes.slice(0, 8).map((g, i) => {
+      const lat = (g.reduce((s, x) => s + x.latitude, 0) / g.length).toFixed(5);
+      const lng = (g.reduce((s, x) => s + x.longitude, 0) / g.length).toFixed(5);
+      const textes = g.map(x => x.texte_retranscrit).filter(Boolean).slice(0, 4).join(' • ');
+      const photosUniques = [...new Set(g.map(x => x.image_web))].slice(0, 5);
+      const thumbs = photosUniques.map(src => `<img src="${src}" />`).join('');
+      return `
+        <div class="cluster-card">
+          <div class="cluster-head">
+            <strong>Point noir #${i + 1} — ${g.length} supports distincts (${g[0].commune})</strong>
+            <span style="font-size:0.78rem;color:#64748b;">GPS : ${lat}, ${lng}</span>
+          </div>
+          <div style="font-size:0.82rem;color:#334155;">Mentions relevées : <em>${textes || 'Non lisible'}</em></div>
+          <div class="cluster-thumbs">${thumbs}</div>
+        </div>
+      `;
+    }).join('');
+
+    const encartStreetView = pointsStreetView.length > 0 ? `
+      <div class="callout-sv">
+        <strong>🛰️ Complément d'inventaire par repérage Street View (${pointsStreetView.length} panneau(x) à vérifier sur place) :</strong>
+        En complément des relevés terrain certifiés de 2026, un balayage cartographique des axes routiers non couverts (> 45 m de toute prise de vue) a détecté <strong>${pointsStreetView.length} dispositif(s) supplémentaire(s)</strong> (notamment en signalétique routière et jalonnement périphérique). Ces points sont isolés des statistiques de vétusté ci-dessous et feront l'objet d'une levée de doute terrain rapide.
+      </div>
+    ` : '';
+
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const titrePerimetre = communeChoisie === 'ALL' ? 'Périmètre global (Tour du Lac)' : `Focus Commune : ${communeChoisie}`;
+
+    document.getElementById('reportContent').innerHTML = `
+      <div class="report-header">
+        <div>
+          <h2>Partie 1 — Diagnostic Global de l'Existant</h2>
+          <div class="meta">Syndicat Mixte Le Lac de Vassivière (SYMIVA) • ${titrePerimetre} • Édition du ${dateStr}</div>
+        </div>
+        <div class="report-tag">Présentation Bureau 06/01/2027<br>& Réunion 6 Maires 14/01/2027</div>
+      </div>
+
+      <div class="timeline-bar">
+        <div class="tl-step"><strong>Étape 1 • Janvier 2027</strong>06/01 : Bureau (9h30)<br>14/01 : Diag aux 6 Maires (14h30)</div>
+        <div class="tl-step"><strong>Étape 2 • Février 2027</strong>Concertation communes<br>& arbitrage devis/budgets</div>
+        <div class="tl-step"><strong>Étape 3 • Mars 2027</strong>Passation commandes<br>& achat des équipements</div>
+        <div class="tl-step"><strong>Étape 4 • Avril - Mai 2027</strong>Livraison & pose terrain<br>avant la saison estivale</div>
+      </div>
+
+      <div class="report-section">
+        <h3>1. Synthèse exécutive de l'inventaire terrain</h3>
+        <p class="report-intro">
+          Cet état des lieux certifié recense <strong>${tot} supports physiques distincts relevés sur le terrain</strong> (après fusion de <strong>${anglesFusionnes} prises de vue multi-angles</strong>, exclusion de <strong>${horsPerimetre.length} panneaux sur terrain privé interne</strong> et isolation de <strong>${aRevoir.length} repères GPS</strong> à reprendre).
+          Le patrimoine propre au Syndicat Mixte (<strong>${patrimoineLac.length} supports</strong> : Ports & Plages + panneaux « à vague ») présente <strong>${lacARenover} dispositifs</strong> nécessitant une remise à niveau, dont <strong>${nbEntreprisesFermees} panneau(x) mentionnant un établissement fermé</strong> (croisement officiel INSEE/SIRENE).
+        </p>
+        ${encartStreetView}
+        <div class="kpi-report-row">
+          <div class="kpi-box"><div class="val">${tot}</div><div class="lbl">Supports terrain certifiés</div></div>
+          <div class="kpi-box"><div class="val" style="color:#dc2626">${tauxVetuste} %</div><div class="lbl">Dégradés / Obsolètes</div></div>
+          <div class="kpi-box"><div class="val" style="color:#0284c7">${patrimoineLac.length}</div><div class="lbl">Patrimoine propre SYMIVA</div></div>
+          <div class="kpi-box"><div class="val" style="color:#d97706">${pointsStreetView.length}</div><div class="lbl">🛰️ Repérages SV à vérifier</div></div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h3>2. Répartition territoriale par commune (Réunion des Maires)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Commune (Découpage IGN)</th>
+              <th>Supports terrain</th>
+              <th>Dégradés / Obsolètes</th>
+              <th>Entreprises fermées (SIRENE)</th>
+              <th>Complément Street View</th>
+            </tr>
+          </thead>
+          <tbody>${lignesCommunes}</tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>3. État sanitaire global par famille de signalétique (Relevés terrain)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Famille de signalétique</th>
+              <th>Supports uniques</th>
+              <th>Bon</th>
+              <th>Moyen</th>
+              <th>Dégradé / Obsolète</th>
+              <th>Taux de vétusté</th>
+            </tr>
+          </thead>
+          <tbody>${lignesMatrice}</tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>4. Analyse détaillée : Signalétique des Ports et Plages (6 usages)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr><th>Thématique d'usage (Ports & Plages)</th><th>Supports relevés</th><th>Dont dégradés / obsolètes</th></tr>
+          </thead>
+          <tbody>${lignesProx}</tbody>
+        </table>
+      </div>
+
+      <div class="report-section page-break">
+        <h3>5. Répartition des besoins d'intervention sur l'existant</h3>
+        <div class="vagues-grid">
+          <div class="vague-card">
+            <h4>Entretien & Débroussaillage</h4>
+            <div class="count" style="color:#059669">${v1} supports</div>
+            <p>Supports structurellement sains mais encrassés ou masqués par la végétation (action régie immédiate).</p>
+          </div>
+          <div class="vague-card">
+            <h4>Renouvellement patrimonial</h4>
+            <div class="count" style="color:#0284c7">${v2} supports</div>
+            <p>Supports vétustes ou à charte obsolète nécessitant un remplacement (Ports/Plages en Tranche 1, « à vague » en Tranche 2).</p>
+          </div>
+          <div class="vague-card">
+            <h4>Dépose & Régularisation</h4>
+            <div class="count" style="color:#dc2626">${v3} supports</div>
+            <p>Épaves hors d'usage, enseignes d'établissements fermés (SIRENE) à déposer et panneaux privés à régulariser.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="report-section">
+        <h3>6. Points noirs de sur-signalisation (Accumulation > 3 supports / 35 m)</h3>
+        ${htmlGrappes || '<p>Aucun point noir détecté sur ce périmètre.</p>'}
+      </div>
+
+      <div class="report-section page-break">
+        <h3>7. Inventaire des panneaux « à vague » (Mentions nominatives vs génériques)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr><th>ID</th><th>Photo</th><th>Commune</th><th>Texte relevé</th><th>Nature de la mention</th><th>État</th></tr>
+          </thead>
+          <tbody>${lignesVagues}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /* =========================================================================
+     PARTIE 2 : PROPOSITIONS OPÉRATIONNELLES, NUDGE PHYDIGITAL & BUDGET 20 K€
+     ========================================================================= */
+  function genererPartie2PropositionsBudget() {
+    const panneaux = supportsUniques.filter(d => !d.is_sv && d.categorie !== 'a_revoir' && d.categorie !== 'hors_perimetre');
+    const proxAll = panneaux.filter(d => d.categorie === 'lac_proximite');
+    const proxARenover = proxAll.filter(d => d.etat_conservation !== 'Bon');
+    const nbLamesSIL = panneaux.filter(d => d.categorie === 'lac_vague' && d.etat_conservation !== 'Bon').length;
+    const privesSauvages = panneaux.filter(d => d.categorie === 'privee');
+    const grappes = detecterPointsNoirs(panneaux, 35, 3);
+
+    const communesPrincipales = [...new Set(panneaux.map(d => d.commune))].slice(0, 6);
+
+    const lignesPortsPlages = communesPrincipales.map(com => {
+      const sub = proxAll.filter(d => d.commune === com);
+      const deg = sub.filter(d => d.etat_conservation !== 'Bon').length;
+      const themes = [...new Set(sub.map(d => d.thematique_prox))].slice(0, 3).join(', ');
+      return `<tr>
+        <td><strong>${com}</strong></td>
+        <td>${sub.length} supports</td>
+        <td><strong style="color:#dc2626">${deg}</strong> à rénover</td>
+        <td style="font-size:0.79rem;color:#475569;">${themes || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    const lignesDesir = communesPrincipales.map(com => {
+      const sub = privesSauvages.filter(d => d.commune === com);
+      const exemples = sub.map(d => d.texte_retranscrit).filter(Boolean).slice(0, 4).join(' • ');
+      return `<tr>
+        <td><strong>${com}</strong></td>
+        <td><strong>${sub.length}</strong> panneaux privés</td>
+        <td><em>${exemples || 'Aucune mention lisible'}</em></td>
+        <td>Relais d'Information Service (RIS) phygital en Tranche 2</td>
+      </tr>`;
+    }).join('');
+
+    const dateStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    document.getElementById('phase2Content').innerHTML = `
+      <div class="report-header">
+        <div>
+          <h2>Partie 2 — Scénario Opérationnel & Programmation Budgétaire</h2>
+          <div class="meta">Appuyé sur le Diagnostic Partie 1 • Tranche 1 Ports & Plages (20 000 €) & Tranche 2 « À vague » • ${dateStr}</div>
+        </div>
+        <div class="report-tag">Arbitrage Financier Février 2027<br>Déploiement Printemps 2027</div>
+      </div>
+
+      <div class="report-section">
+        <h3>1. TRANCHE 1 PRIORITAIRE — Refonte Ports & Plages (Enveloppe : 20 000 €)</h3>
+        <div class="callout-box">
+          <strong>Stratégie d'allocation des 20 000 € :</strong> Sur la base des <strong>${proxAll.length} supports Ports & Plages</strong> identifiés en Partie 1 (dont <strong>${proxARenover.length} vétustes</strong>), l'enveloppe de 20 000 € est consacrée exclusivement aux accès plages et ports. Pour maximiser l'impact visuel et éviter de multiplier les petits poteaux, le scénario privilégie le déploiement de <strong>Totems d'accueil multi-usages</strong> (regroupant les 6 thématiques réglementaires + un <strong>QR Code dynamique</strong> vers <em>lelacdevassiviere.fr</em>) complétés par des panneaux ponctuels ciblés.
+        </div>
+
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Commune (Ports & Plages)</th>
+              <th>Existant relevé (Partie 1)</th>
+              <th>Dont vétuste / à refaire</th>
+              <th>Usages dominants à regrouper</th>
+            </tr>
+          </thead>
+          <tbody>${lignesPortsPlages}</tbody>
+        </table>
+
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Poste Tranche 1 (Ports & Plages — Commandes Mars / Pose Printemps 2027)</th>
+              <th>Quantité cible</th>
+              <th>Coût unitaire (€)</th>
+              <th>Sous-total (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Totems d'entrée Ports & Plages multi-usages</strong> (regroupement 6 thématiques + QR Code)</td>
+              <td><input type="number" class="price-input" id="qte-t1-totem" value="8" oninput="recalculerBudget()" /></td>
+              <td><input type="number" class="price-input" id="pu-t1-totem" value="1650" oninput="recalculerBudget()" /></td>
+              <td id="tot-t1-totem"><strong>0 €</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Panneaux réglementaires ponctuels</strong> (mises à l'eau, chiens, stationnement/PMR, déchets)</td>
+              <td><input type="number" class="price-input" id="qte-t1-petit" value="22" oninput="recalculerBudget()" /></td>
+              <td><input type="number" class="price-input" id="pu-t1-petit" value="260" oninput="recalculerBudget()" /></td>
+              <td id="tot-t1-petit"><strong>0 €</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Dépose des anciens supports & pose neuve</strong> (en régie technique SYMIVA)</td>
+              <td>Régie interne</td>
+              <td><input type="number" class="price-input" id="pu-t1-regie" value="0" oninput="recalculerBudget()" /></td>
+              <td id="tot-t1-regie"><strong>0 €</strong></td>
+            </tr>
+            <tr style="background:#e0f2fe;">
+              <td colspan="3"><strong>TOTAL ENGAGÉ TRANCHE 1 (Plafond disponible : 20 000 €)</strong></td>
+              <td id="tot-t1-global" style="font-size:1.05rem;color:#0f4c5c;"><strong>0 €</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div id="jaugeBudgetT1" style="padding:12px 16px;border-radius:8px;border:1px solid #cbd5e1;background:#f8fafc;font-size:0.88rem;"></div>
+      </div>
+
+      <div class="report-section page-break">
+        <h3>2. Principes de conception : Nudge comportemental & Passerelle phygitale</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Levier UX / Nudge</th>
+              <th>Problème terrain constaté</th>
+              <th>Réponse matérielle & numérique (<em>lelacdevassiviere.fr</em>)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Sobriété paysagère & Couche dynamique</strong><br><span style="font-size:0.75rem;color:#64748b;">(Tranche 1 — Ports & Plages)</span></td>
+              <td>Multiplication des arrêtés temporaires et panneaux disparates sur les plages.</td>
+              <td>Le totem physique porte uniquement l'identité pérenne du site ; un <strong>QR Code contextuel</strong> renvoie vers les pages dynamiques de <em>lelacdevassiviere.fr</em> (qualité des eaux de baignade, niveau du lac, alerte patous, sentiers de rives, signalement Suricate).</td>
+            </tr>
+            <tr>
+              <td><strong>2. Nudge comportemental de préservation</strong><br><span style="font-size:0.75rem;color:#64748b;">(Tranche 1 — Usages rives)</span></td>
+              <td>Incivilités (déchets, stationnement camping-cars, chiens non tenus en laisse) traitées par le seul interdit punitif.</td>
+              <td>Formulation positive et incitative sur les totems plages/ports (valorisation de la pureté de l'eau et des espaces du Conservatoire du Littoral) + jalonnement anticipé orientant naturellement les camping-cars vers les aires dédiées.</td>
+            </tr>
+            <tr>
+              <td><strong>3. Nudge « Drive-to-local » & Intelligence collective</strong><br><span style="font-size:0.75rem;color:#64748b;">(Tranche 2 — Carrefours)</span></td>
+              <td><strong>${privesSauvages.length} panneaux privés « sauvages »</strong> implantés aux carrefours stratégiques.</td>
+              <td>Exploitation de ces « lignes de désir » pour implanter des <strong>Relais d'Information Service (RIS)</strong> unifiés aux points de décision, couplés à un accès mobile vers la carte des prestataires locaux des 6 communes.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>3. TRANCHE 2 (SECOND TEMPS) — Refonte des panneaux « à vague » & RIS</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Poste Tranche 2 (Jalonnement & Harmonisation)</th>
+              <th>Quantité issue Partie 1</th>
+              <th>Coût unitaire (€)</th>
+              <th>Estimation (€)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Ensembles directionnels SIL normalisés</strong> (remplacement panneaux « à vague »)</td>
+              <td><input type="number" class="price-input" id="qte-t2-sil" value="${nbLamesSIL}" oninput="recalculerBudget()" /></td>
+              <td><input type="number" class="price-input" id="pu-t2-sil" value="450" oninput="recalculerBudget()" /></td>
+              <td id="tot-t2-sil"><strong>0 €</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Relais d'Information Service (RIS)</strong> (regroupement carrefours & offre privée)</td>
+              <td><input type="number" class="price-input" id="qte-t2-ris" value="${Math.max(grappes.length, 4)}" oninput="recalculerBudget()" /></td>
+              <td><input type="number" class="price-input" id="pu-t2-ris" value="2600" oninput="recalculerBudget()" /></td>
+              <td id="tot-t2-ris"><strong>0 €</strong></td>
+            </tr>
+            <tr style="background:#f1f5f9;">
+              <td colspan="3"><strong>ESTIMATION PRÉVISIONNELLE TRANCHE 2 (Hors enveloppe Ports/Plages)</strong></td>
+              <td id="tot-t2-global" style="font-size:1rem;color:#334155;"><strong>0 €</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="report-section">
+        <h3>4. Cartographie des « Lignes de désir » par commune (Panneaux sauvages)</h3>
+        <table class="audit-table">
+          <thead>
+            <tr>
+              <th>Commune</th>
+              <th>Densité sauvage relevée</th>
+              <th>Besoins d'orientation exprimés (OCR)</th>
+              <th>Réponse d'aménagement</th>
+            </tr>
+          </thead>
+          <tbody>${lignesDesir}</tbody>
+        </table>
+      </div>
+    `;
+    recalculerBudget();
+  }
+
+  function recalculerBudget() {
+    const ENVELOPPE_T1 = 20000;
+
+    const qTotem = parseInt(document.getElementById('qte-t1-totem').value) || 0;
+    const pTotem = parseFloat(document.getElementById('pu-t1-totem').value) || 0;
+    const qPetit = parseInt(document.getElementById('qte-t1-petit').value) || 0;
+    const pPetit = parseFloat(document.getElementById('pu-t1-petit').value) || 0;
+    const pRegie = parseFloat(document.getElementById('pu-t1-regie').value) || 0;
+
+    const sTotem = qTotem * pTotem;
+    const sPetit = qPetit * pPetit;
+    const totT1 = sTotem + sPetit + pRegie;
+    const resteT1 = ENVELOPPE_T1 - totT1;
+    const pctT1 = Math.min(100, Math.round((totT1 / ENVELOPPE_T1) * 100));
+
+    document.getElementById('tot-t1-totem').innerHTML = `<strong>${sTotem.toLocaleString('fr-FR')} €</strong>`;
+    document.getElementById('tot-t1-petit').innerHTML = `<strong>${sPetit.toLocaleString('fr-FR')} €</strong>`;
+    document.getElementById('tot-t1-regie').innerHTML = `<strong>${pRegie.toLocaleString('fr-FR')} €</strong>`;
+    document.getElementById('tot-t1-global').innerHTML = `<strong>${totT1.toLocaleString('fr-FR')} €</strong>`;
+
+    const jauge = document.getElementById('jaugeBudgetT1');
+    const couleurBarre = resteT1 >= 0 ? '#059669' : '#dc2626';
+    const texteSolde = resteT1 >= 0
+      ? `✅ <strong>Solde disponible : ${resteT1.toLocaleString('fr-FR')} €</strong> (${pctT1} % de l'enveloppe de 20 000 € utilisés — permet d'équiper <strong>${qTotem} pôles Ports/Plages</strong> avec totems multi-usages + ${qPetit} panneaux ponctuels).`
+      : `⚠️ <strong>Dépassement de ${Math.abs(resteT1).toLocaleString('fr-FR')} €</strong> par rapport à l'enveloppe de 20 000 €. Ajustez les quantités ou le phasage.`;
+
+    jauge.innerHTML = `
+      <div style="margin-bottom:6px;">${texteSolde}</div>
+      <div style="height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden;">
+        <div style="width:${pctT1}%;height:100%;background:${couleurBarre};transition:0.25s;"></div>
+      </div>
+    `;
+
+    const qSil = parseInt(document.getElementById('qte-t2-sil').value) || 0;
+    const pSil = parseFloat(document.getElementById('pu-t2-sil').value) || 0;
+    const qRis = parseInt(document.getElementById('qte-t2-ris').value) || 0;
+    const pRis = parseFloat(document.getElementById('pu-t2-ris').value) || 0;
+
+    const sSil = qSil * pSil;
+    const sRis = qRis * pRis;
+    const totT2 = sSil + sRis;
+
+    document.getElementById('tot-t2-sil').innerHTML = `<strong>${sSil.toLocaleString('fr-FR')} €</strong>`;
+    document.getElementById('tot-t2-ris').innerHTML = `<strong>${sRis.toLocaleString('fr-FR')} €</strong>`;
+    document.getElementById('tot-t2-global').innerHTML = `<strong>${totT2.toLocaleString('fr-FR')} €</strong>`;
+  }
+
+  function exporterCSV() {
+    const headers = ['ID', 'Source', 'AVerifierSurPlace', 'Commune', 'CodePostal', 'Photos_Angles', 'Categorie', 'Thematique_Proximite', 'Etat', 'EntrepriseFermeeSIRENE', 'Texte', 'Anomalies', 'Recommandation', 'Latitude', 'Longitude', 'StreetView'];
+    const rows = selectionActuelle.map(d => [
+      d.id,
+      d.is_sv ? 'street_view' : 'terrain_2026',
+      d.is_sv ? 'OUI' : 'NON',
+      `"${d.commune}"`,
+      `"${d.code_postal || ''}"`,
+      (d.photos_angles || [d.image_web]).length,
+      d.categorie,
+      `"${d.thematique_prox}"`,
+      d.etat_conservation,
+      d.entreprise_fermee ? 'OUI' : 'NON',
+      `"${(d.texte_retranscrit || '').replace(/"/g, '""')}"`,
+      `"${(d.anomalies_detectees || []).join('; ').replace(/"/g, '""')}"`,
+      d.recommandation,
+      d.latitude,
+      d.longitude,
+      d.street_view_url || ''
+    ].join(';'));
+
+    const csv = '\uFEFF' + [headers.join(';'), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'diagnostic_signaletique_vassiviere.csv';
+    a.click();
+  }
+
+  chargerDonnees();
+</script>
+</body>
+</html>
